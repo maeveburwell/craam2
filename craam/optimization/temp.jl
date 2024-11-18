@@ -4,35 +4,78 @@ using DataStructures
 using Printf
 using Infinity
 
-
-function gradients_func(p::Vector{Float64}, pr::Vector{Float64}, z::Vector{Float64},w::Vector{Float64})
-    grad_que = []
-    smallest = Infinity
-    for iz in sorted_ind(z)
-        assert(w[iz] > epsilon)
-        if (w[iz] < smallest)
-            pr.push(iz)
-            smallest = w[iz]
-        end
-    end
-    #case a: donor is less or equal to pbar
-    #donor
-    for i in 1:length(p)
-        for j in pr
-            if z[i] <= z[j] continue
-            else 
-                grad = (-z[i] + z[j]) / (w[i] + w[j])
-                grad_que.push(grad < -epsilon ? derivative : 0)
-                donors.push(i)
-                receivers.push(j)
-                donor_greater.push(true)
-            end
-        end
+struct GradientsL1_w
+    grads :: Vector{Float64}
+    donors :: Vector{Float64}
+    receivers::Vector{Float64}
+    donor_greater::Vector{Bool}
+    sorted::Vector{Float64}
 end
 
-function determine_receiver(p::Vector{Float64}, donor::Float64, gradients::Vector{Float64})
-    receiver = argmax(gradients .* (1 .- (1:length(p) .== donor)))
-    return gradients[receiver] > gradients[donor] ? receiver : 0
+function GradientsL1_w(z::Vector{Float64}, w::Vector{Float64})
+    epsilon = 1e-8
+    element_count = length(z)
+
+    @assert length(w) == element_count
+
+    grads = Float64[]
+    donors = Float64[]
+    receivers = Float64[]
+    donor_greater = Bool[]
+
+    # Identifing possible receivers
+    z_increasing = sortperm(z)
+    possible_receivers = Int[]
+    smallest_w = Inf
+
+    for iz in z_increasing
+        @assert w[iz] > epsilon
+        if w[iz] < smallest_w
+            push!(possible_receivers, iz)
+            smallest_w = w[iz]
+        end
+    end
+
+    # Computing grads for donor-receiver pairs
+    for i = 1:element_count
+        for j in possible_receivers
+            if z[i] <= z[j]
+                continue
+            end
+            # Case a: donor ≤ pbar value
+            grad = (-z[i] + z[j]) / (w[i] + w[j])
+            push!(grads, grad < -epsilon ? grad : 0)
+            push!(donors, i)
+            push!(receivers, j)
+            push!(donor_greater, false)
+        end
+    end
+
+    # Case b: donor > pbar value
+    for i in possible_receivers
+        for j in possible_receivers
+            if z[i] <= z[j]
+                continue
+            end
+            if abs(w[i] - w[j]) > epsilon && w[i] < w[j]
+                grad = (-z[i] + z[j]) / (-w[i] + w[j])
+                push!(grads, grad < -epsilon ? grad : 0)
+                push!(donors, i)
+                push!(receivers, j)
+                push!(donor_greater, true)
+            end
+        end
+    end
+
+    sorted = sortperm(grads)
+
+    return GradientsL1_w(grads, donors, receivers, donor_greater, sorted)
+end
+
+function steepest_solution(gradients::GradientsL1_w, index::Int)
+    @assert index >= 1 && index <= length(gradients.sorted)
+    e = gradients.sorted[index]
+    return gradients.grads[e], gradients.donors[e], gradients.receivers[e], gradients.donor_greater[e]
 end
 
 function worstcase_l1_w(z::Vector{Float64}, pbar::Vector{Float64}, w::Vector{Float64}, xi::Float64)
@@ -45,9 +88,12 @@ function worstcase_l1_w(z::Vector{Float64}, pbar::Vector{Float64}, w::Vector{Flo
     p = copy(pbar)
     xi_rest = xi
     grad_epsilon = 1e-5
+    grad_que = [] #tuple
+
+    grads = GradientsL1_w(z, w)
 
     for k in 1:length(z)
-        grad_que, steepest_grad = gradients_func(p, z, w)
+        grad_que, steepest_grad = steepest_solution(grads, i)
         push!(grad_que, (steepest_grad[k], k))
 
         while length(grad_que) > 1 && grad_que[1][1] < grad_que[end][1] - grad_epsilon
@@ -57,25 +103,25 @@ function worstcase_l1_w(z::Vector{Float64}, pbar::Vector{Float64}, w::Vector{Flo
         for grad in grad_que
 
             weight, donor = grad
-            receiver = determine_receiver(p, donor, steepest_grad)
+            receiver = determine_receiver(pbar, donor, steepest_grad)
 
             if receiver == 0 continue end
             
             donor_greater = (steepest_grad[donor] > steepest_grad[receiver])
 
-            if donor_greater && p[donor] <= pbar[donor] + epsilon continue end
+            if donor_greater && pbar[donor] <= pbar[donor] + epsilon continue end
 
-            if !donor_greater && p[donor] > pbar[donor] + epsilon continue end
+            if !donor_greater && pbar[donor] > pbar[donor] + epsilon continue end
 
-            if p[donor] < epsilon continue end
+            if pbar[donor] < epsilon continue end
 
             weight_change = donor_greater ? (-w[donor] + w[receiver]) : (w[donor] + w[receiver])
             @assert weight_change > 0
 
             donor_step = min(xi_rest / weight_change, 
-                             p[donor] > pbar[donor] + epsilon ? (p[donor] - pbar[donor]) : p[donor])
-            p[donor] -= donor_step
-            p[receiver] += donor_step
+                             pbar[donor] > pbar[donor] + epsilon ? (pbar[donor] - pbar[donor]) : pbar[donor])
+            pbar[donor] -= donor_step
+            pbar[receiver] += donor_step
             xi_rest -= donor_step * weight_change
 
             if xi_rest < epsilon break end
@@ -83,6 +129,6 @@ function worstcase_l1_w(z::Vector{Float64}, pbar::Vector{Float64}, w::Vector{Flo
         if xi_rest < epsilon break end
     end
 
-    objective = dot(p, z)
-    return (p, objective)
+    objective = dot(pbar, z)
+    return (pbar, objective)
 end
