@@ -90,24 +90,21 @@ function worstcase_l1_w(z::Vector{Float64}, pbar::Vector{Float64}, w::Vector{Flo
     grad_epsilon = 1e-5
     grad_que = [] #tuple
 
-    grads = GradientsL1_w(z, w)
+    gradients = GradientsL1_w(z, w)
 
     for k in 1:length(z)
-        grad_que, steepest_grad = steepest_solution(grads, i)
-        push!(grad_que, (steepest_grad[k], k))
+        ss = steepest_solution(gradients, k)
+        push!(grad_que, ss)
 
         while length(grad_que) > 1 && grad_que[1][1] < grad_que[end][1] - grad_epsilon
             popfirst!(grad_que)
         end
 
-        for grad in grad_que
+        for g in grad_que
 
-            weight, donor = grad
-            receiver = determine_receiver(pbar, donor, steepest_grad)
+            _, donor, receiver, donor_greater = g
 
             if receiver == 0 continue end
-            
-            donor_greater = (steepest_grad[donor] > steepest_grad[receiver])
 
             if donor_greater && pbar[donor] <= pbar[donor] + epsilon continue end
 
