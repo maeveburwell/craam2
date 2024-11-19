@@ -1,4 +1,4 @@
-include("temp.jl")  # Include the file containing the worstcase_l1 function
+include("optimization.jl")  # Include the file containing the worstcase_l1 function
 
 # Test case 1
 z = [0.5, 0.2, 0.9, 0.1]
@@ -12,7 +12,7 @@ println("Optimal p: ", p_opt)
 println("Objective value: ", objective_value)
 
 z2 = [0.5, 0.2, 0.9, 0.1]   # Target distribution
-pbar2 = [0.25, 0.4, 0.25, 0.1] # Initial probability distribution
+pbar2 = [0.1, 0.25, 0.4, 0.25] # Initial probability distribution
 w = [1.0, 1.0, 1.0, 1.0]    # Weights associated with each probability
 xi2 = 0.5
 
