@@ -20,7 +20,8 @@ xi2 = 0.5
 
 result = worstcase_l1_w(z2, pbar2, w, xi2)
 
-@assert result[1] == p_opt #worst_case_l1 should be the same as worstcase_l1_w with uniform weights
+@assert result[1] == p_opt #worst_case_l1 optimal values should be the same as worstcase_l1_w with uniform weights
+@assert result[2] == objective_value #objectives should also be the same
 
 println("Test case 2 (worstcase_l1_w):")
 println("For uniform weights: ", w)
