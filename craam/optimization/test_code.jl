@@ -7,7 +7,7 @@ z = [0.5, 0.2, 0.9, 0.1]
 p̄ = [0.1, 0.25, 0.4, 0.25]
 ξ = 0.5
 
-p_opt, objective_value = worst_case_l1(z, p̄, ξ)
+p_opt, objective_value = worstcase_l1(z, p̄, ξ)
 println("For z values: ", z)
 println("For pbar values: ", p̄)
 println("")
